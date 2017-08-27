@@ -1,0 +1,2 @@
+# DefineSymbolEditor
+【Unity】ScriptDefineSymbolをGUIで設定できるツール
