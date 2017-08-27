@@ -31,4 +31,6 @@ sysinfo.txt
 
 # Builds
 *.apk
-*.unitypackage
+
+# Sandbox
+[Ss]andbox*
