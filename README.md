@@ -3,7 +3,8 @@
 
 ![image](https://github.com/wataru-ito/DefineSymbolEditor/blob/master/ScriptDefineEditor_Image_01.jpg)
 
-シンボルの定義
+シンボル編集時
+
 ![image](https://github.com/wataru-ito/DefineSymbolEditor/blob/master/ScriptDefineEditor_Image_02.jpg)
 
 # 特徴
