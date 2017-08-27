@@ -4,39 +4,54 @@ using UnityEngine;
 
 namespace DefineSymbolEditor
 {
-	public class DefineSymbolPresetCreateWindow : EditorWindow
+	class DefineSymbolEditorWindow : EditorWindow
 	{
-		string m_name = "PRESET";
-		Action<string> m_callbackl;
-
-		public static DefineSymbolPresetCreateWindow Open(Action<string> callback)
+		class PresetCreateWindow : EditorWindow
 		{
-			var win = CreateInstance<DefineSymbolPresetCreateWindow>();
-			win.m_callbackl = callback;
-			win.Show(); //ShowPopup();
-			return win;
-		}
+			string m_name = "PRESET";
+			Action<string> m_callbackl;
 
-		void OnGUI()
-		{
-			m_name  = EditorGUILayout.TextField("名前", m_name);
-			if (GUILayout.Button("決定"))
+			public static PresetCreateWindow Open(Action<string> callback)
 			{
-				m_callbackl(m_name);
-				Close();
+				var win = CreateInstance<PresetCreateWindow>();
+				win.m_callbackl = callback;
+				win.ShowAuxWindow();
+				return win;
+			}
+
+			void OnEnable()
+			{
+				titleContent = new GUIContent("プリセット作成");
+				minSize =
+				maxSize = new Vector2(250, 40);
+			}
+
+			void OnGUI()
+			{
+				EditorGUIUtility.labelWidth = 70f;
+				m_name = EditorGUILayout.TextField("プリセット名", m_name);
+				using (new EditorGUILayout.HorizontalScope())
+				{
+					if (GUILayout.Button("決定", "ButtonLeft"))
+					{
+						m_callbackl(m_name);
+						Close();
+					}
+					if (GUILayout.Button("戻る", "ButtonRight"))
+					{
+						Close();
+					}
+				}
 			}
 		}
-	}
 
-	public class DefineSymbolEditorWindow : EditorWindow
-	{
 		enum Mode
 		{
 			Symbol,
 			Context,
 		}
 
-		readonly BuildTargetGroup[] kTargets =
+		readonly BuildTargetGroup[] kTargets = 
 		{
 			BuildTargetGroup.Standalone,
 			BuildTargetGroup.iOS,
@@ -87,7 +102,7 @@ namespace DefineSymbolEditor
 			if (s_instane) return;
 
 			s_instane = CreateInstance<DefineSymbolEditorWindow>();
-			s_instane.ShowAuxWindow();
+			s_instane.ShowUtility();
 		}
 
 
@@ -155,11 +170,12 @@ namespace DefineSymbolEditor
 		void DrawBuildTargetIcon(Rect itemPosition, int index)
 		{
 			var icon = itemPosition;
+			icon.x += 2;
 			icon.y += (icon.height - kTargetIconSize) * 0.5f;
 			icon.width = icon.height = kTargetIconSize;
 			GUI.DrawTexture(icon, m_targetIcons[index]);
 
-			itemPosition.x += icon.width + 4f;
+			itemPosition.x = icon.xMax + 4f;
 			itemPosition.y += (itemPosition.height - 16f) * 0.5f;
 			itemPosition.height = 16f;
 			GUI.Label(itemPosition, kTargets[index].ToString());
@@ -250,30 +266,53 @@ namespace DefineSymbolEditor
 
 				if (GUILayout.Button("Apply", kFooterBtnWidth))
 				{
-					if (m_mode == Mode.Context)
-					{
-						m_data.context = new DefineSymbolContext(m_context);
-						m_data.Save();
-						SetSymbolMode();
-					}
-					else
-					{
-						ApplySymbol();
-						Close();
-					}
+					OnApply();
 				}
 				if (GUILayout.Button("Revert", kFooterBtnWidth))
 				{
-					if (m_mode == Mode.Context)
-					{
-						m_context = new DefineSymbolContext(m_data.context);
-						SetSymbolMode();
-					}
-					else
-					{
-						Close();
-					}
+					OnRevert();
 				}
+			}
+		}
+
+		void OnApply()
+		{
+			if (m_mode == Mode.Context)
+			{
+				m_data.context = new DefineSymbolContext(m_context);
+				m_data.Save();
+				SetSymbolMode();
+			}
+			else
+			{
+				m_data.Save(); // m_data.targetsが変わってるかもしれない
+				foreach (var target in kTargets)
+				{
+					PlayerSettings.SetScriptingDefineSymbolsForGroup(target, GetScriptingDefineSymbols(target));
+				}
+				Close();
+			}
+		}
+
+		string GetScriptingDefineSymbols(BuildTargetGroup target)
+		{
+			if (!m_data.targets.Contains(target))
+				return string.Empty;
+
+			var index = Array.FindIndex(m_status, i => i.target == target);
+			return index >= 0 ? m_status[index].ToSymbol() : string.Empty;
+		}
+
+		void OnRevert()
+		{
+			if (m_mode == Mode.Context)
+			{
+				m_context = new DefineSymbolContext(m_data.context);
+				SetSymbolMode();
+			}
+			else
+			{
+				Close();
 			}
 		}
 
@@ -315,7 +354,7 @@ namespace DefineSymbolEditor
 				return;
 			}
 
-			DefineSymbolPresetCreateWindow.Open(name =>
+			PresetCreateWindow.Open(name =>
 			{
 				var preset = DefineSymbolPreset.Create(name, m_status);
 				m_data.presets.Add(preset);
@@ -348,10 +387,10 @@ namespace DefineSymbolEditor
 			m_buildTargetRect = GUILayoutUtility.GetLastRect();
 			m_buildTargetRect.x += 1f;
 			m_buildTargetRect.y += 1f;
-			m_buildTargetRect.width -= 2f;
-			m_buildTargetRect.height -= 2f;
+			m_buildTargetRect.width -= 1f;
+			m_buildTargetRect.height -= 1f;
 
-			var viewRect = new Rect(0, 0, m_buildTargetRect.width - 16f, kTargetItemHeight * kTargets.Length);
+			var viewRect = new Rect(0, 0, m_buildTargetRect.width - 14f, kTargetItemHeight * kTargets.Length);
 			using (var scroll = new GUI.ScrollViewScope(m_buildTargetRect, m_targetScrollPosition, viewRect))
 			{
 				for (int i = 0; i < kTargets.Length; ++i)
@@ -382,6 +421,28 @@ namespace DefineSymbolEditor
 			}
 
 			DrawBuildTargetIcon(itemPosition, index);
+
+			using (var check = new EditorGUI.ChangeCheckScope())
+			{
+				var togglePosition = new Rect(
+					itemPosition.xMax - 32f,
+					itemPosition.y + (itemPosition.height - 16f) * 0.5f,
+					16f, 16f);
+				
+				var selected = GUI.Toggle(togglePosition, m_data.targets.Contains(kTargets[index]), GUIContent.none);
+				if (check.changed)
+				{
+					if (selected)
+					{
+						m_data.targets.Add(kTargets[index]);
+						m_data.targets.Sort((x, y) => Array.IndexOf(kTargets, x).CompareTo(Array.IndexOf(kTargets, y)));
+					}
+					else
+					{
+						m_data.targets.Remove(kTargets[index]);
+					}
+				}
+			}
 		}
 
 		GUIStyleState GetStyleState(bool selected)
@@ -432,21 +493,22 @@ namespace DefineSymbolEditor
 			m_status = DefineSymbolStatus.Create(m_context, kTargets);
 		}
 
-		void ApplySymbol()
-		{
-			for (int i = 0; i < kTargets.Length; ++i)
-			{
-				PlayerSettings.SetScriptingDefineSymbolsForGroup(kTargets[i], m_status[i].ToSymbol());
-			}
-		}
-
 		void DrawSymbolMode()
 		{
+			var targetEnabled = m_data.targets.Contains(kTargets[m_targetIndex]);
+			GUI.enabled = targetEnabled;
+
 			GUILayout.Box(GUIContent.none, "Label", GUILayout.Height(32), GUILayout.ExpandWidth((true)));
 			DrawBuildTargetIcon(GUILayoutUtility.GetLastRect(), m_targetIndex);
 
 			EditorGUILayout.Space();
 			m_status[m_targetIndex].DrawEdit();
+
+			GUI.enabled = true;
+			if (!targetEnabled)
+			{
+				EditorGUILayout.HelpBox("このプラットフォームを有効にするにはチェックを入れてください", MessageType.Info);
+			}
 		}
 
 

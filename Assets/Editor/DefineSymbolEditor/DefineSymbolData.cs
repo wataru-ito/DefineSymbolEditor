@@ -4,7 +4,6 @@ using System.IO;
 using UnityEngine;
 using UnityEditor;
 
-
 namespace DefineSymbolEditor
 {
 	[Serializable]
@@ -41,11 +40,13 @@ namespace DefineSymbolEditor
 	{
 		const string kFilePath = "ProjectSettings/DefineSymbolEditor.txt";
 
+		public List<BuildTargetGroup> targets;
 		public DefineSymbolContext context;
 		public List<DefineSymbolPreset> presets;
 
 		public DefineSymbolData()
 		{
+			targets = new List<BuildTargetGroup>();
 			context = new DefineSymbolContext();
 			presets = new List<DefineSymbolPreset>();
 		}
@@ -88,19 +89,24 @@ namespace DefineSymbolEditor
 
 
 		//------------------------------------------------------
-		// Preset
+		// preset
 		//------------------------------------------------------
 
-		/// <returns>null:保存されてない string.Empty:見つかったけど空だっただけ</returns>
-		public static string GetScriptDefineSymbolPreset(string presetName, BuildTargetGroup targetGroup)
+		public string GetPresetSymbols(string presetName, BuildTargetGroup targetGroup)
 		{
-			var data = Load();
-
-			var preset = data.presets.Find(i => i.name == presetName);
-			if (preset == null) return null;
-
+			var preset = presets.Find(i => i.name == presetName);
+			if (preset == null) 
+				return string.Empty;
+			
 			var index = Array.FindIndex(preset.symbols, i => i.target == targetGroup);
-			return index >= 0 ? preset.symbols[index].symbol : null;
+			if (index < 0)
+				return string.Empty;
+			
+			// プリセット保存時には有効だったプラットフォームが今は無効化されている事もある
+			if (!targets.Contains(targetGroup))
+				return string.Empty;
+
+			return preset.symbols[index].symbol;
 		}
 	}
 }

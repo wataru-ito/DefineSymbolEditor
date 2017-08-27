@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using UnityEngine;
 using UnityEditor;
 
@@ -159,14 +158,20 @@ namespace DefineSymbolEditor
 			}
 		}
 
+
 		//------------------------------------------------------
 		// gui
 		//------------------------------------------------------
 
 		public void DrawEdit()
 		{
+			var prev = EditorGUIUtility.labelWidth;
+			EditorGUIUtility.labelWidth = 80f;
+
 			DrawEdit("Toggle", toggles, CreateToggle);
 			DrawEdit("Dropdown", dropdowns, CreateDropdown);
+
+			EditorGUIUtility.labelWidth = prev;
 		}
 
 		void DrawEdit<T>(string label, List<T> list, Func<T> createInstance)
