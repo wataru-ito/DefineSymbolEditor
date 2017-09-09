@@ -390,7 +390,7 @@ namespace DefineSymbolEditor
 			m_buildTargetRect.width -= 1f;
 			m_buildTargetRect.height -= 1f;
 
-			var viewRect = new Rect(0, 0, m_buildTargetRect.width - 14f, kTargetItemHeight * kTargets.Length);
+			var viewRect = new Rect(0, 0, m_buildTargetRect.width - 16f, kTargetItemHeight * kTargets.Length);
 			using (var scroll = new GUI.ScrollViewScope(m_buildTargetRect, m_targetScrollPosition, viewRect))
 			{
 				for (int i = 0; i < kTargets.Length; ++i)
