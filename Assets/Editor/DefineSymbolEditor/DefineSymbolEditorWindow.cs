@@ -46,12 +46,6 @@ namespace DefineSymbolEditor
 			}
 		}
 
-		enum Mode
-		{
-			Symbol,
-			Context,
-		}
-
 		readonly BuildTargetGroup[] kTargets = 
 		{
 			BuildTargetGroup.Standalone,
@@ -82,7 +76,7 @@ namespace DefineSymbolEditor
 		string[] m_presetDeleteLabels;
 
 		int m_targetIndex;
-		Mode m_mode;
+		Action m_mode;
 
 		Texture[] m_targetIcons; //kTargetsと対応
 		GUIStyle m_labelStyle;
@@ -204,15 +198,7 @@ namespace DefineSymbolEditor
 						{
 							using (var scroll = new EditorGUILayout.ScrollViewScope(m_settingScrollPosition))
 							{
-								switch (m_mode)
-								{
-									case Mode.Symbol:
-										DrawSymbolMode();
-										break;
-									case Mode.Context:
-										DrawContextMode();
-										break;
-								}
+								m_mode();
 								m_settingScrollPosition = scroll.scrollPosition;
 							}
 						}
@@ -256,7 +242,7 @@ namespace DefineSymbolEditor
 			using (new EditorGUILayout.HorizontalScope())
 			{
 				var kFooterBtnWidth = GUILayout.Width(108);
-				GUI.enabled = m_mode == Mode.Symbol;
+				GUI.enabled = m_mode == DrawSymbolMode;
 				if (GUILayout.Button("シンボル定義編集", kFooterBtnWidth))
 				{
 					SetContextMode();
@@ -278,7 +264,7 @@ namespace DefineSymbolEditor
 
 		void OnApply()
 		{
-			if (m_mode == Mode.Context)
+			if (m_mode == DrawContextMode)
 			{
 				m_data.context = new DefineSymbolContext(m_context);
 				m_data.Save();
@@ -306,7 +292,7 @@ namespace DefineSymbolEditor
 
 		void OnRevert()
 		{
-			if (m_mode == Mode.Context)
+			if (m_mode == DrawContextMode)
 			{
 				m_context = new DefineSymbolContext(m_data.context);
 				SetSymbolMode();
@@ -490,7 +476,7 @@ namespace DefineSymbolEditor
 
 		void SetSymbolMode()
 		{
-			m_mode = Mode.Symbol;
+			m_mode = DrawSymbolMode;
 			m_status = DefineSymbolStatus.Create(m_context, kTargets);
 		}
 
@@ -542,7 +528,7 @@ namespace DefineSymbolEditor
 
 		void SetContextMode()
 		{
-			m_mode = Mode.Context;
+			m_mode = DrawContextMode;
 		}
 
 		void DrawContextMode()
