@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 
@@ -300,7 +301,7 @@ namespace DefineSymbolEditor
 				return string.Empty;
 
 			var index = Array.FindIndex(m_status, i => i.target == target);
-			return index >= 0 ? m_status[index].ToSymbol() : string.Empty;
+			return index >= 0 ? m_status[index].ToSymbols() : string.Empty;
 		}
 
 		void OnRevert()
@@ -331,7 +332,7 @@ namespace DefineSymbolEditor
 				m_presetLabels[2 + i] = m_data.presets[i].name;
 			}
 			m_presetLabels[m_presetLabels.Length - 2] = string.Empty;
-			m_presetLabels[m_presetLabels.Length - 1] = "新規保存";
+			m_presetLabels[m_presetLabels.Length - 1] = "保存";
 
 
 			m_presetDeleteLabels = new string[m_data.presets.Count + 2];
@@ -502,13 +503,36 @@ namespace DefineSymbolEditor
 			DrawBuildTargetIcon(GUILayoutUtility.GetLastRect(), m_targetIndex);
 
 			EditorGUILayout.Space();
-			m_status[m_targetIndex].DrawEdit();
+			DrawEditStatus(m_status[m_targetIndex]);
 
 			GUI.enabled = true;
 			if (!targetEnabled)
 			{
 				EditorGUILayout.HelpBox("このプラットフォームを有効にするにはチェックを入れてください", MessageType.Info);
 			}
+		}
+
+		void DrawEditStatus(DefineSymbolStatus status)
+		{
+			if (status.common != null)
+			{
+				EditorGUILayout.LabelField("共通");
+				DrawEditStatus(status.common);
+				EditorGUILayout.Space();
+			}
+
+			status.toggles.ForEach(EditStatusToggle);
+			status.dropdowns.ForEach(EditStatusDropdown);
+		}
+
+		void EditStatusToggle(DefineSymbolStatus.Toggle toggle)
+		{
+			toggle.enabled = EditorGUILayout.Toggle(toggle.context.content, toggle.enabled);
+		}
+
+		void EditStatusDropdown(DefineSymbolStatus.Dropdown dropdown)
+		{
+			dropdown.index = EditorGUILayout.Popup(dropdown.context.content, dropdown.index, dropdown.context.displayedOptions);
 		}
 
 
@@ -523,7 +547,108 @@ namespace DefineSymbolEditor
 
 		void DrawContextMode()
 		{
-			m_context.DrawEdit();
+			var prev = EditorGUIUtility.labelWidth;
+			EditorGUIUtility.labelWidth = 80f;
+
+			DrawEdit("Toggle", m_context.toggles, DrawEditToggle, CreateToggle);
+			DrawEdit("Dropdown", m_context.dropdowns, DrawEditDropdown, CreateDropdown);
+
+			EditorGUIUtility.labelWidth = prev;
+		}
+
+		void DrawEdit<T>(string label, List<T> list, Func<T,bool> drawer, Func<T> createInstance)
+			where T : DefineSymbolContext.Symbol
+		{
+			EditorGUILayout.LabelField(label, EditorStyles.boldLabel);
+			for (int i = 0; i < list.Count; ++i)
+			{
+				using (new EditorGUILayout.VerticalScope("box"))
+				{
+					var deleteFlag = drawer(list[i]);
+					if (deleteFlag)
+					{
+						list.RemoveAt(i--);
+					}
+				}
+			}
+
+			using (new EditorGUILayout.HorizontalScope())
+			{
+				GUILayout.FlexibleSpace();
+				if (GUILayout.Button("定義追加"))
+				{
+					list.Add(createInstance());
+				}
+			}
+		}
+
+		const float kBtnWidth = 38f;
+
+		bool DrawEditSymbol(DefineSymbolContext.Symbol symbol)
+		{
+			var deleteFlag = false;
+			using (new EditorGUILayout.HorizontalScope())
+			{
+				symbol.name = EditorGUILayout.TextField("名前", symbol.name);
+				deleteFlag = GUILayout.Button("削除", EditorStyles.miniButton, GUILayout.Width(kBtnWidth));
+			}
+			symbol.description = EditorGUILayout.TextField("説明", symbol.description);
+			symbol.individual = EditorGUILayout.Toggle("Platform別", symbol.individual);
+
+			return deleteFlag;
+		}
+
+		bool DrawEditToggle(DefineSymbolContext.Toggle toggle)
+		{
+			return DrawEditSymbol(toggle);
+		}
+
+		bool DrawEditDropdown(DefineSymbolContext.Dropdown dropdown)
+		{
+			var deleteFlg = DrawEditSymbol(dropdown);
+			++EditorGUI.indentLevel;
+
+			for (int j = 0; j < dropdown.items.Count; ++j)
+			{
+				using (new EditorGUILayout.HorizontalScope())
+				{
+					dropdown.items[j] = EditorGUILayout.TextField(dropdown.items[j]);
+					if (GUILayout.Button("削除", EditorStyles.miniButton, GUILayout.Width(kBtnWidth)))
+					{
+						dropdown.items.RemoveAt(j--);
+					}
+				}
+			}
+
+			using (new EditorGUILayout.HorizontalScope())
+			{
+				GUILayout.FlexibleSpace();
+				if (GUILayout.Button("選択追加"))
+				{
+					dropdown.items.Add("ITEM" + dropdown.items.Count);
+				}
+			}
+
+			--EditorGUI.indentLevel;
+
+			return deleteFlg;
+		}
+
+		DefineSymbolContext.Toggle CreateToggle()
+		{
+			var toggle = new DefineSymbolContext.Toggle();
+			toggle.name = "TOGGLE" + m_context.toggles.Count;
+			toggle.description = string.Empty;
+			return toggle;
+		}
+
+		DefineSymbolContext.Dropdown CreateDropdown()
+		{
+			var dropdown = new DefineSymbolContext.Dropdown();
+			dropdown.name = "DROPDOWN" + m_context.dropdowns.Count;
+			dropdown.description = string.Empty;
+			dropdown.items.Add("ITEM0");
+			return dropdown;
 		}
 	}
 }

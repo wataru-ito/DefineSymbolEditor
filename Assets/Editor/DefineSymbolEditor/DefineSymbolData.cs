@@ -23,7 +23,7 @@ namespace DefineSymbolEditor
 		{
 			var preset = new DefineSymbolPreset();
 			preset.name = name;
-			preset.symbols = Array.ConvertAll(status, i => new Symbol { target = i.target, symbol = i.ToSymbol() });
+			preset.symbols = Array.ConvertAll(status, i => new Symbol { target = i.target, symbol = i.ToSymbols() });
 			return preset;
 		}
 
