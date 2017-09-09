@@ -70,6 +70,7 @@ namespace DefineSymbolEditor
 
 		DefineSymbolData m_data;
 		DefineSymbolContext m_context;
+		DefineSymbolStatus m_statusCommon;
 		DefineSymbolStatus[] m_status; //kTargetsと対応
 
 		string[] m_presetLabels;
@@ -272,7 +273,8 @@ namespace DefineSymbolEditor
 			}
 			else
 			{
-				m_data.Save(); // m_data.targetsが変わってるかもしれない
+				m_data.commonSymbols = m_statusCommon.ToSymbols();
+				m_data.Save();
 				foreach (var target in kTargets)
 				{
 					PlayerSettings.SetScriptingDefineSymbolsForGroup(target, GetScriptingDefineSymbols(target));
@@ -337,13 +339,13 @@ namespace DefineSymbolEditor
 
 			if (index < m_data.presets.Count)
 			{
-				m_status = DefineSymbolStatus.Create(m_context, kTargets, m_data.presets[index]);
+				m_status = CreateStatus(m_data.presets[index]);
 				return;
 			}
 
 			PresetCreateWindow.Open(name =>
 			{
-				var preset = DefineSymbolPreset.Create(name, m_status);
+				var preset = DefineSymbolPreset.Create(name, m_statusCommon, m_status);
 				m_data.presets.Add(preset);
 				m_data.Save();
 				UpdatePresetLabels();
@@ -477,7 +479,35 @@ namespace DefineSymbolEditor
 		void SetSymbolMode()
 		{
 			m_mode = DrawSymbolMode;
-			m_status = DefineSymbolStatus.Create(m_context, kTargets);
+			m_status = CreateStatus();
+		}
+
+		DefineSymbolStatus[] CreateStatus()
+		{
+			DefineSymbolContext commonContext, indivisualContext;
+			m_context.Split(out commonContext, out indivisualContext);
+
+			m_statusCommon = new DefineSymbolStatus(BuildTargetGroup.Unknown, null, commonContext, m_data.commonSymbols);
+
+			return Array.ConvertAll(kTargets, i =>
+			{
+				return new DefineSymbolStatus(i, m_statusCommon, indivisualContext,
+					PlayerSettings.GetScriptingDefineSymbolsForGroup(i));
+			});
+		}
+
+		DefineSymbolStatus[] CreateStatus(DefineSymbolPreset preset)
+		{
+			DefineSymbolContext commonContext, indivisualContext;
+			m_context.Split(out commonContext, out indivisualContext);
+
+			m_statusCommon = new DefineSymbolStatus(BuildTargetGroup.Unknown, null, commonContext, preset.commonSymbols);
+
+			return Array.ConvertAll(kTargets, i =>
+			{
+				return new DefineSymbolStatus(i, m_statusCommon, indivisualContext,
+					preset.GetScriptingDefineSymbolsForGroup(i));
+			});
 		}
 
 		void DrawSymbolMode()

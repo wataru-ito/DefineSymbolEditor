@@ -98,19 +98,19 @@ namespace DefineSymbolEditor
 			src.dropdowns.ForEach(i => dropdowns.Add(new Dropdown(i)));
 		}
 
-		public void Split(out DefineSymbolContext general, out DefineSymbolContext indivisual)
+		public void Split(out DefineSymbolContext common, out DefineSymbolContext indivisual)
 		{
-			general = new DefineSymbolContext();
+			common = new DefineSymbolContext();
 			indivisual = new DefineSymbolContext();
 
 			foreach (var toggle in toggles)
 			{
-				(toggle.individual ? indivisual : general).toggles.Add(toggle);
+				(toggle.individual ? indivisual : common).toggles.Add(toggle);
 			}
 
 			foreach (var dropdown in dropdowns)
 			{
-				(dropdown.individual ? indivisual : general).dropdowns.Add(dropdown);
+				(dropdown.individual ? indivisual : common).dropdowns.Add(dropdown);
 			}
 		}
 	}

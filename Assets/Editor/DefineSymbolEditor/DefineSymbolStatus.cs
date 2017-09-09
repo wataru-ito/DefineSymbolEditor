@@ -61,37 +61,7 @@ namespace DefineSymbolEditor
 		// factory
 		//------------------------------------------------------
 
-		public static DefineSymbolStatus[] Create(DefineSymbolContext context, BuildTargetGroup[] targets)
-		{
-			DefineSymbolContext commonContext, indivisualContext;
-			context.Split(out commonContext, out indivisualContext);
-
-			var commonStatus = new DefineSymbolStatus(BuildTargetGroup.Unknown, null, commonContext,
-				PlayerSettings.GetScriptingDefineSymbolsForGroup(BuildTargetGroup.Standalone));
-
-			return Array.ConvertAll(targets, i =>
-			{
-				return new DefineSymbolStatus(i, commonStatus, indivisualContext,
-					PlayerSettings.GetScriptingDefineSymbolsForGroup(i));
-			});
-		}
-
-		public static DefineSymbolStatus[] Create(DefineSymbolContext context, BuildTargetGroup[] targets, DefineSymbolPreset preset)
-		{
-			DefineSymbolContext commonContext, indivisualContext;
-			context.Split(out commonContext, out indivisualContext);
-
-			var commonStatus = new DefineSymbolStatus(BuildTargetGroup.Unknown, null, commonContext,
-				PlayerSettings.GetScriptingDefineSymbolsForGroup(BuildTargetGroup.Standalone));
-
-			return Array.ConvertAll(targets, i =>
-			{
-				return new DefineSymbolStatus(i, commonStatus, indivisualContext,
-					preset.GetScriptingDefineSymbolsForGroup(i));
-			});
-		}
-
-		DefineSymbolStatus(BuildTargetGroup target, DefineSymbolStatus common, DefineSymbolContext context, string symbol)
+		public DefineSymbolStatus(BuildTargetGroup target, DefineSymbolStatus common, DefineSymbolContext context, string symbol)
 		{
 			this.target = target;
 			this.common = common;
