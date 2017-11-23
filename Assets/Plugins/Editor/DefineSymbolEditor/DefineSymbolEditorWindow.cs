@@ -5,6 +5,15 @@ using UnityEngine;
 
 namespace DefineSymbolEditor
 {
+	/// <summary>
+	/// 現在の設定とプリセットを共通で扱えるようにする
+	/// </summary>
+	interface IDefineSymbolData
+	{
+		string GetCommonSymbols();
+		string GetScriptingDefineSymbolsForGroup(BuildTargetGroup targetGroup);
+	}
+
 	class DefineSymbolEditorWindow : EditorWindow
 	{
 		class PresetCreateWindow : EditorWindow
@@ -65,24 +74,53 @@ namespace DefineSymbolEditor
 			BuildTargetGroup.Switch,
 		};
 
+		class PlatformData
+		{
+			public readonly BuildTargetGroup target;
+			public string name { get { return target.ToString(); } }
+			public readonly Texture icon;
+			public DefineSymbolStatus status;
+
+			public PlatformData(BuildTargetGroup target)
+			{
+				this.target = target;
+				icon = LoadIcon(target);
+			}
+
+			static Texture LoadIcon(BuildTargetGroup target)
+			{
+				var textureName = target.ToString();
+
+				// iOSは古いiPhoneの名前で存在してるらしい
+				if (target == BuildTargetGroup.iOS)
+					textureName = "iPhone";
+
+				var icon = EditorGUIUtility.Load(string.Format("BuildSettings.{0}", textureName)) as Texture;
+				if (icon == null)
+					icon = EditorGUIUtility.Load(string.Format("d_BuildSettings.{0}", textureName)) as Texture;
+				return icon;
+			}
+		}
+
 		const float kTargetItemHeight = 36f;
 		const float kTargetIconSize = 32f;
 
 		DefineSymbolData m_data;
 		DefineSymbolContext m_context;
 		DefineSymbolStatus m_statusCommon;
-		DefineSymbolStatus[] m_status; //kTargetsと対応
+
+		PlatformData[] m_platforms;
+		PlatformData m_current;
 
 		string[] m_presetLabels;
 		string[] m_presetDeleteLabels;
 
-		int m_targetIndex;
 		Action m_mode;
 
 		bool m_initialized;
-		Texture[] m_targetIcons; //kTargetsと対応
 		GUIStyle m_platformStyle;
-		GUIStyle m_entryStyle;
+		GUIStyle m_entryBackEvenStyle;
+		GUIStyle m_entryBackOddStyle;
 		Vector2 m_targetScrollPosition;
 		Vector2 m_settingScrollPosition;
 
@@ -114,74 +152,24 @@ namespace DefineSymbolEditor
 			titleContent = new GUIContent("ScriptDefineSymbol Editor");
 			minSize = new Vector2(570f, 380f);
 
+			m_platforms = Array.ConvertAll(kTargets, i => new PlatformData(i));
+			m_current = Array.Find(m_platforms, i => i.target == EditorUserBuildSettings.selectedBuildTargetGroup) ?? m_platforms[0];
+
 			m_data = DefineSymbolData.Load();
 			UpdatePresetLabels();
 
 			m_context = new DefineSymbolContext(m_data.context);
-			m_targetIndex = Array.IndexOf(kTargets, EditorUserBuildSettings.selectedBuildTargetGroup);
-
+			
 			SetSymbolMode();
+
+			m_initialized = false;
 		}
 
 		void OnGUI()
 		{
 			if (!m_initialized && !InitGUI())
 				return;
-			
-			DrawBody();
-		}
 
-
-		//------------------------------------------------------
-		// gui
-		//------------------------------------------------------
-
-		bool InitGUI()
-		{
-			var skin = GUI.skin;
-			m_platformStyle = GUI.skin.FindStyle("PlayerSettingsPlatform");
-			m_entryStyle = GUI.skin.FindStyle("OL EntryBackOdd");
-			if (m_platformStyle == null || m_entryStyle == null)
-			{
-				EditorGUILayout.HelpBox("BuiltinSkin has not style.", MessageType.Error);
-				return false;
-			}
-
-			m_targetIcons = Array.ConvertAll(kTargets, i => LoadIcon(i));
-			m_initialized = true;
-			return true;
-		}
-
-		static Texture LoadIcon(BuildTargetGroup target)
-		{
-			var name = target.ToString();
-
-			// PlayerSettingsと似せるためにリネーム
-			if (target == BuildTargetGroup.iOS)
-				name = "iPhone";
-
-			var icon = EditorGUIUtility.Load(string.Format("BuildSettings.{0}", name)) as Texture;
-			if (icon == null)
-				icon = EditorGUIUtility.Load(string.Format("d_BuildSettings.{0}", name)) as Texture;
-			return icon;
-		}
-
-		void DrawBuildTargetIcon(Rect itemPosition, int index)
-		{
-			var icon = itemPosition;
-			icon.x += 2;
-			icon.y += (icon.height - kTargetIconSize) * 0.5f;
-			icon.width = icon.height = kTargetIconSize;
-			GUI.DrawTexture(icon, m_targetIcons[index]);
-
-			itemPosition.x = icon.xMax + 4f;
-			itemPosition.y += (itemPosition.height - 16f) * 0.5f;
-			itemPosition.height = 16f;
-			GUI.Label(itemPosition, kTargets[index].ToString());
-		}
-
-		void DrawBody()
-		{
 			using (new EditorGUILayout.HorizontalScope())
 			{
 				const float kPaddingSide = 12f;
@@ -214,6 +202,41 @@ namespace DefineSymbolEditor
 				}
 				GUILayout.Space(kPaddingSide);
 			}
+		}
+
+
+		//------------------------------------------------------
+		// gui
+		//------------------------------------------------------
+
+		bool InitGUI()
+		{
+			var skin = GUI.skin;
+			m_platformStyle = GUI.skin.FindStyle("PlayerSettingsPlatform");
+			m_entryBackEvenStyle = GUI.skin.FindStyle("OL EntryBackEven");
+			m_entryBackOddStyle = GUI.skin.FindStyle("OL EntryBackOdd");
+			if (m_platformStyle == null || m_entryBackEvenStyle == null || m_entryBackOddStyle == null)
+			{
+				EditorGUILayout.HelpBox("BuiltinSkin has not style.", MessageType.Error);
+				return false;
+			}
+
+			m_initialized = true;
+			return true;
+		}
+
+		void DrawBuildTargetIcon(Rect itemPosition, PlatformData platform)
+		{
+			var icon = itemPosition;
+			icon.x += 2;
+			icon.y += (icon.height - kTargetIconSize) * 0.5f;
+			icon.width = icon.height = kTargetIconSize;
+			GUI.DrawTexture(icon, platform.icon);
+
+			itemPosition.x = icon.xMax + 4f;
+			itemPosition.y += (itemPosition.height - 16f) * 0.5f;
+			itemPosition.height = 16f;
+			GUI.Label(itemPosition, platform.ToString());
 		}
 
 		void DrawHeader()
@@ -278,21 +301,13 @@ namespace DefineSymbolEditor
 			{
 				m_data.commonSymbols = m_statusCommon.ToSymbols();
 				m_data.Save();
-				foreach (var target in kTargets)
+				foreach (var platform in m_platforms)
 				{
-					PlayerSettings.SetScriptingDefineSymbolsForGroup(target, GetScriptingDefineSymbols(target));
+					PlayerSettings.SetScriptingDefineSymbolsForGroup(platform.target,
+						m_data.targets.Contains(platform.target) ? platform.status.ToSymbols() : string.Empty);
 				}
 				Close();
 			}
-		}
-
-		string GetScriptingDefineSymbols(BuildTargetGroup target)
-		{
-			if (!m_data.targets.Contains(target))
-				return string.Empty;
-
-			var index = Array.FindIndex(m_status, i => i.target == target);
-			return index >= 0 ? m_status[index].ToSymbols() : string.Empty;
 		}
 
 		void OnRevert()
@@ -342,13 +357,13 @@ namespace DefineSymbolEditor
 
 			if (index < m_data.presets.Count)
 			{
-				m_status = CreateStatus(m_data.presets[index]);
+				UpdatePlatformStatus(m_data.presets[index]);
 				return;
 			}
 
 			PresetCreateWindow.Open(name =>
 			{
-				var preset = DefineSymbolPreset.Create(name, m_statusCommon, m_status);
+				var preset = DefineSymbolPreset.Create(name, m_statusCommon, Array.ConvertAll(m_platforms, i => i.status));
 				m_data.presets.Add(preset);
 				m_data.Save();
 				UpdatePresetLabels();
@@ -382,20 +397,20 @@ namespace DefineSymbolEditor
 			position.width -= 1f;
 			position.height -= 1f;
 
-			var viewRect = new Rect(0, 0, position.width - 16f, kTargetItemHeight * kTargets.Length);
+			var viewRect = new Rect(0, 0, position.width - 16f, kTargetItemHeight * m_platforms.Length);
 			using (var scroll = new GUI.ScrollViewScope(position, m_targetScrollPosition, viewRect))
 			{
-				for (int i = 0; i < kTargets.Length; ++i)
+				for (int i = 0; i < m_platforms.Length; ++i)
 				{
 					var itemRect = new Rect(0, kTargetItemHeight * i, viewRect.width, kTargetItemHeight);
-					PlatformField(itemRect, i);
+					PlatformField(itemRect, m_platforms[i], i % 2 == 0 ? m_entryBackEvenStyle : m_entryBackOddStyle);
 				}
 
 				m_targetScrollPosition = scroll.scrollPosition;
 			}
 		}
 
-		void PlatformField(Rect itemPosition, int index)
+		void PlatformField(Rect itemPosition, PlatformData platform, GUIStyle backStyle)
 		{
 			var togglePosition = new Rect(
 				itemPosition.xMax - 32f,
@@ -406,20 +421,17 @@ namespace DefineSymbolEditor
 			switch (ev.type)
 			{
 				case EventType.Repaint:
-					var color = GUI.color;
-					GUI.color = index % 2 == 0 ? Color.white : new Color(0.95f, 0.95f, 0.95f);
-					m_entryStyle.Draw(itemPosition, false, false, m_targetIndex == index, false);
-					GUI.color = color;
-
+					backStyle.Draw(itemPosition, false, false, platform == m_current, false);
+					
 					var icon = itemPosition;
 					icon.x += 2;
 					icon.y += (icon.height - kTargetIconSize) * 0.5f;
 					icon.width = icon.height = kTargetIconSize;
-					GUI.DrawTexture(icon, m_targetIcons[index]);
+					GUI.DrawTexture(icon, platform.icon);
 					
 					m_platformStyle.Draw(itemPosition,
-						new GUIContent(kTargets[index].ToString()),
-						focusedWindow == this, false, m_targetIndex == index, false);
+						new GUIContent(platform.name),
+						focusedWindow == this, false, platform == m_current, false);
 					break;
 
 				case EventType.MouseDown:
@@ -428,24 +440,24 @@ namespace DefineSymbolEditor
 						// トグルにかぶってたら処理しない = ev.Use()しちゃうとトグルが反応しなくなる
 						if (!togglePosition.Contains(ev.mousePosition))
 						{
-							m_targetIndex = index;
+							m_current = platform;
 							ev.Use();
 						}
 					}
 					break;
 			}
 
-			var isTarget = m_data.targets.Contains(kTargets[index]);
+			var isTarget = m_data.targets.Contains(platform.target);
 			if (GUI.Toggle(togglePosition, isTarget, GUIContent.none) != isTarget)
 			{
 				if (!isTarget)
 				{
-					m_data.targets.Add(kTargets[index]);
-					m_data.targets.Sort((x, y) => Array.IndexOf(kTargets, x).CompareTo(Array.IndexOf(kTargets, y)));
+					m_data.targets.Add(platform.target);
+					m_data.targets.Sort((x, y) => Array.FindIndex(m_platforms, i => i.target == x).CompareTo(Array.FindIndex(m_platforms, i => i.target == y)));
 				}
 				else
 				{
-					m_data.targets.Remove(kTargets[index]);
+					m_data.targets.Remove(platform.target);
 				}
 			}	
 		}
@@ -458,47 +470,33 @@ namespace DefineSymbolEditor
 		void SetSymbolMode()
 		{
 			m_mode = DrawSymbolMode;
-			m_status = CreateStatus();
+			UpdatePlatformStatus(m_data);
 		}
 
-		DefineSymbolStatus[] CreateStatus()
+		void UpdatePlatformStatus(IDefineSymbolData data)
 		{
 			DefineSymbolContext commonContext, indivisualContext;
 			m_context.Split(out commonContext, out indivisualContext);
 
-			m_statusCommon = new DefineSymbolStatus(BuildTargetGroup.Unknown, null, commonContext, m_data.commonSymbols);
+			m_statusCommon = new DefineSymbolStatus(BuildTargetGroup.Unknown, null, commonContext, data.GetCommonSymbols());
 
-			return Array.ConvertAll(kTargets, i =>
+			foreach (var platform in m_platforms)
 			{
-				return new DefineSymbolStatus(i, m_statusCommon, indivisualContext,
-					PlayerSettings.GetScriptingDefineSymbolsForGroup(i));
-			});
-		}
-
-		DefineSymbolStatus[] CreateStatus(DefineSymbolPreset preset)
-		{
-			DefineSymbolContext commonContext, indivisualContext;
-			m_context.Split(out commonContext, out indivisualContext);
-
-			m_statusCommon = new DefineSymbolStatus(BuildTargetGroup.Unknown, null, commonContext, preset.commonSymbols);
-
-			return Array.ConvertAll(kTargets, i =>
-			{
-				return new DefineSymbolStatus(i, m_statusCommon, indivisualContext,
-					preset.GetScriptingDefineSymbolsForGroup(i));
-			});
+				platform.status = new DefineSymbolStatus(platform.target, m_statusCommon, indivisualContext,
+					data.GetScriptingDefineSymbolsForGroup(platform.target));
+			}
 		}
 
 		void DrawSymbolMode()
 		{
-			var targetEnabled = m_data.targets.Contains(kTargets[m_targetIndex]);
+			var targetEnabled = m_data.targets.Contains(m_current.target);
 			GUI.enabled = targetEnabled;
 
-			GUILayout.Box(GUIContent.none, "Label", GUILayout.Height(32), GUILayout.ExpandWidth((true)));
-			DrawBuildTargetIcon(GUILayoutUtility.GetLastRect(), m_targetIndex);
+			GUILayout.Box(GUIContent.none, GUI.skin.label, GUILayout.Height(32), GUILayout.ExpandWidth((true)));
+			DrawBuildTargetIcon(GUILayoutUtility.GetLastRect(), m_current);
 
 			EditorGUILayout.Space();
-			DrawEditStatus(m_status[m_targetIndex]);
+			DrawEditStatus(m_current.status);
 
 			GUI.enabled = true;
 			if (!targetEnabled)
