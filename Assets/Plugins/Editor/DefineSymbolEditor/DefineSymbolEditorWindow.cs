@@ -79,9 +79,10 @@ namespace DefineSymbolEditor
 		int m_targetIndex;
 		Action m_mode;
 
+		bool m_initialized;
 		Texture[] m_targetIcons; //kTargetsと対応
-		GUIStyle m_labelStyle;
-		Rect m_buildTargetRect;
+		GUIStyle m_platformStyle;
+		GUIStyle m_entryStyle;
 		Vector2 m_targetScrollPosition;
 		Vector2 m_settingScrollPosition;
 
@@ -119,14 +120,15 @@ namespace DefineSymbolEditor
 			m_context = new DefineSymbolContext(m_data.context);
 			m_targetIndex = Array.IndexOf(kTargets, EditorUserBuildSettings.selectedBuildTargetGroup);
 
-			InitGUI();
 			SetSymbolMode();
 		}
 
 		void OnGUI()
 		{
+			if (!m_initialized && !InitGUI())
+				return;
+			
 			DrawBody();
-			EventProcedure();
 		}
 
 
@@ -134,19 +136,20 @@ namespace DefineSymbolEditor
 		// gui
 		//------------------------------------------------------
 
-		void InitGUI()
+		bool InitGUI()
 		{
+			var skin = GUI.skin;
+			m_platformStyle = GUI.skin.FindStyle("PlayerSettingsPlatform");
+			m_entryStyle = GUI.skin.FindStyle("OL EntryBackOdd");
+			if (m_platformStyle == null || m_entryStyle == null)
+			{
+				EditorGUILayout.HelpBox("BuiltinSkin has not style.", MessageType.Error);
+				return false;
+			}
+
 			m_targetIcons = Array.ConvertAll(kTargets, i => LoadIcon(i));
-
-
-			// 以前は自前のguiskinを持っていたが、free/proのスキン切替失念してた。
-			// 今のスキンから複製する方が安い
-			var skin = EditorGUIUtility.GetBuiltinSkin(EditorSkin.Inspector);
-			var style = skin.FindStyle("Hi Label");
-			if (style == null) return;
-
-			m_labelStyle = new GUIStyle(style);
-			m_labelStyle.padding.left = 4;
+			m_initialized = true;
+			return true;
 		}
 
 		static Texture LoadIcon(BuildTargetGroup target)
@@ -192,7 +195,7 @@ namespace DefineSymbolEditor
 					{
 						using (new EditorGUILayout.VerticalScope(GUILayout.Width(250f + 8f)))
 						{
-							DrawTargetSelect();
+							DrawPlatformList();
 						}
 
 						using (new EditorGUILayout.VerticalScope())
@@ -367,108 +370,84 @@ namespace DefineSymbolEditor
 
 
 		//------------------------------------------------------
-		// build target select
+		// platform list
 		//------------------------------------------------------
 
-		void DrawTargetSelect()
+		void DrawPlatformList()
 		{
 			GUILayout.Box(GUIContent.none, GUILayout.Width(250f), GUILayout.ExpandHeight(true));
-			m_buildTargetRect = GUILayoutUtility.GetLastRect();
-			m_buildTargetRect.x += 1f;
-			m_buildTargetRect.y += 1f;
-			m_buildTargetRect.width -= 1f;
-			m_buildTargetRect.height -= 1f;
+			var position = GUILayoutUtility.GetLastRect();
+			position.x += 1f;
+			position.y += 1f;
+			position.width -= 1f;
+			position.height -= 1f;
 
-			var viewRect = new Rect(0, 0, m_buildTargetRect.width - 16f, kTargetItemHeight * kTargets.Length);
-			using (var scroll = new GUI.ScrollViewScope(m_buildTargetRect, m_targetScrollPosition, viewRect))
+			var viewRect = new Rect(0, 0, position.width - 16f, kTargetItemHeight * kTargets.Length);
+			using (var scroll = new GUI.ScrollViewScope(position, m_targetScrollPosition, viewRect))
 			{
 				for (int i = 0; i < kTargets.Length; ++i)
 				{
 					var itemRect = new Rect(0, kTargetItemHeight * i, viewRect.width, kTargetItemHeight);
-					DrawTagetSelectItem(itemRect, i);
+					PlatformField(itemRect, i);
 				}
 
 				m_targetScrollPosition = scroll.scrollPosition;
 			}
 		}
 
-		void DrawTagetSelectItem(Rect itemPosition, int index)
+		void PlatformField(Rect itemPosition, int index)
 		{
-			var styleState = GetStyleState(m_targetIndex == index);
-			if (styleState.background)
+			var togglePosition = new Rect(
+				itemPosition.xMax - 32f,
+				itemPosition.y + (itemPosition.height - 16f) * 0.5f,
+				16f, 16f);
+
+			var ev = Event.current;
+			switch (ev.type)
 			{
-				GUI.DrawTexture(itemPosition, styleState.background);
-			}
-			else
-			{
-				var prev = GUI.color;
-				var gray = new Color(prev.r * 0.95f, prev.g * 0.95f, prev.b * 0.95f);
-				var style = GUI.skin.FindStyle("CN EntryBackOdd");
-				GUI.color = index % 2 == 0 ? prev : gray;
-				GUI.Box(itemPosition, GUIContent.none, style);
-				GUI.color = prev;
-			}
+				case EventType.Repaint:
+					var color = GUI.color;
+					GUI.color = index % 2 == 0 ? Color.white : new Color(0.95f, 0.95f, 0.95f);
+					m_entryStyle.Draw(itemPosition, false, false, m_targetIndex == index, false);
+					GUI.color = color;
 
-			DrawBuildTargetIcon(itemPosition, index);
+					var icon = itemPosition;
+					icon.x += 2;
+					icon.y += (icon.height - kTargetIconSize) * 0.5f;
+					icon.width = icon.height = kTargetIconSize;
+					GUI.DrawTexture(icon, m_targetIcons[index]);
+					
+					m_platformStyle.Draw(itemPosition,
+						new GUIContent(kTargets[index].ToString()),
+						focusedWindow == this, false, m_targetIndex == index, false);
+					break;
 
-			using (var check = new EditorGUI.ChangeCheckScope())
-			{
-				var togglePosition = new Rect(
-					itemPosition.xMax - 32f,
-					itemPosition.y + (itemPosition.height - 16f) * 0.5f,
-					16f, 16f);
-				
-				var selected = GUI.Toggle(togglePosition, m_data.targets.Contains(kTargets[index]), GUIContent.none);
-				if (check.changed)
-				{
-					if (selected)
-					{
-						m_data.targets.Add(kTargets[index]);
-						m_data.targets.Sort((x, y) => Array.IndexOf(kTargets, x).CompareTo(Array.IndexOf(kTargets, y)));
-					}
-					else
-					{
-						m_data.targets.Remove(kTargets[index]);
-					}
-				}
-			}
-		}
-
-		GUIStyleState GetStyleState(bool selected)
-		{
-			if (selected)
-				return focusedWindow == this ? m_labelStyle.onActive : m_labelStyle.onNormal;
-			return m_labelStyle.normal;
-		}
-
-
-		//------------------------------------------------------
-		// events
-		//------------------------------------------------------
-
-		void EventProcedure()
-		{
-			switch (Event.current.type)
-			{
 				case EventType.MouseDown:
-					if (m_buildTargetRect.Contains(Event.current.mousePosition))
+					if (itemPosition.Contains(ev.mousePosition) && ev.button == 0)
 					{
-						OnBuildTargetSelected(Event.current);
-						Repaint();
+						// トグルにかぶってたら処理しない = ev.Use()しちゃうとトグルが反応しなくなる
+						if (!togglePosition.Contains(ev.mousePosition))
+						{
+							m_targetIndex = index;
+							ev.Use();
+						}
 					}
 					break;
 			}
-		}
 
-		void OnBuildTargetSelected(Event ev)
-		{
-			var index = Mathf.FloorToInt((ev.mousePosition.y - m_buildTargetRect.y + m_targetScrollPosition.y) / kTargetItemHeight);
-			if (index >= kTargets.Length)
+			var isTarget = m_data.targets.Contains(kTargets[index]);
+			if (GUI.Toggle(togglePosition, isTarget, GUIContent.none) != isTarget)
 			{
-				return;
-			}
-
-			m_targetIndex = index;
+				if (!isTarget)
+				{
+					m_data.targets.Add(kTargets[index]);
+					m_data.targets.Sort((x, y) => Array.IndexOf(kTargets, x).CompareTo(Array.IndexOf(kTargets, y)));
+				}
+				else
+				{
+					m_data.targets.Remove(kTargets[index]);
+				}
+			}	
 		}
 
 
