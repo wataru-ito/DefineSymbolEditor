@@ -66,7 +66,9 @@ namespace DefineSymbolEditor
 			BuildTargetGroup.XboxOne,
 			BuildTargetGroup.PSP2,
 			BuildTargetGroup.PS4,
+			#if !UNITY_2017_3_OR_NEWER
 			BuildTargetGroup.SamsungTV,
+			#endif
 			BuildTargetGroup.N3DS,
 			BuildTargetGroup.WiiU,
 			BuildTargetGroup.tvOS,
