@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text.RegularExpressions;
 using UnityEngine;
 using UnityEditor;
 
@@ -53,6 +54,8 @@ namespace DefineSymbolEditor
 			try
 			{
 				var json = EditorJsonUtility.ToJson(this);
+				json = Regex.Replace(json, @"[,\[\{]", i => i.Value + "\n");
+				json = Regex.Replace(json, @"[\]\}]", i => "\n" + i.Value);
 				File.WriteAllText(kFilePath, json, System.Text.Encoding.UTF8);
 			}
 			catch (Exception)
