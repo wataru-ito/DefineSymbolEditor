@@ -1,11 +1,15 @@
 # DefineSymbolEditor
-【Unity】ScriptDefineSymbolをGUIで設定できるツール
+PlayerSettings の Script Define Symbols、直接編集するとtypoとか怖いですよね。<br>
+一時的に未定義した後、元に戻すときにどんな名前だったか思い出すの億劫ですよね。<br>
+というか設定まで遠くないですか？いちいち開くのﾒﾝﾄﾞｸｻｲ。<br>
+そんな不安と不便を解決します。<br>
 
-![image](https://github.com/wataru-ito/DefineSymbolEditor/blob/master/ScriptDefineEditor_Image_01.jpg)
+
+![image](README_files/ScriptDefineEditor_Image_01.jpg)
 
 シンボル編集時
 
-![image](https://github.com/wataru-ito/DefineSymbolEditor/blob/master/ScriptDefineEditor_Image_02.jpg)
+![image](README_files/ScriptDefineEditor_Image_02.jpg)
 
 # 特徴
 
@@ -31,5 +35,9 @@ MENU[Tools > Build > DefineSymbol Editor]
 
 # コマンドライン
 
-* DefineSymbolEditorCommandLineToolクラスからアクセス
+* DefineSymbolEditorCommandLineToolクラスからアクセス(まだ貧弱)
 
+
+# License
+
+MIT License
