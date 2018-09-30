@@ -7,6 +7,10 @@ using UnityEditor;
 
 namespace DefineSymbolEditor
 {
+    /// <summary>
+    /// ローカルに保存されるデータ
+    /// 形式はjson
+    /// </summary>
 	[Serializable]
 	class DefineSymbolData : IDefineSymbolData
 	{
@@ -17,7 +21,12 @@ namespace DefineSymbolEditor
 		public string commonSymbols;
 		public List<DefineSymbolPreset> presets;
 
-		public DefineSymbolData()
+
+        //------------------------------------------------------
+        // lifecycle
+        //------------------------------------------------------
+
+        public DefineSymbolData()
 		{
 			targets = new List<BuildTargetGroup>();
 			context = new DefineSymbolContext();
@@ -27,7 +36,7 @@ namespace DefineSymbolEditor
 
 
 		//------------------------------------------------------
-		// 保存/復元
+		// io
 		//------------------------------------------------------
 
 		public static DefineSymbolData Load()
@@ -79,9 +88,23 @@ namespace DefineSymbolEditor
 		}
 
 
-		//------------------------------------------------------
-		// preset
-		//------------------------------------------------------
+        //------------------------------------------------------
+        // preset
+        //------------------------------------------------------
+
+        public void AddPreset(DefineSymbolPreset preset)
+        {
+            var index = presets.FindIndex(i => i.name == preset.name);
+            if (index >= 0)
+            {
+                presets[index] = preset;
+            }
+            else
+            {
+                presets.Add(preset);
+                presets.Sort((x, y) => x.name.CompareTo(y.name));
+            }
+        }
 
 		public string GetPresetSymbols(string presetName, BuildTargetGroup targetGroup)
 		{

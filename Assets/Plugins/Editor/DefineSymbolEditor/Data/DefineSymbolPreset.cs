@@ -17,7 +17,12 @@ namespace DefineSymbolEditor
 		public string commonSymbols;
 		public Symbol[] symbols;
 
-		public static DefineSymbolPreset Create(string name, DefineSymbolStatus common, DefineSymbolStatus[] status)
+
+        //------------------------------------------------------
+        // static function
+        //------------------------------------------------------
+
+        public static DefineSymbolPreset Create(string name, DefineSymbolStatus common, DefineSymbolStatus[] status)
 		{
 			var preset = new DefineSymbolPreset();
 			preset.name = name;

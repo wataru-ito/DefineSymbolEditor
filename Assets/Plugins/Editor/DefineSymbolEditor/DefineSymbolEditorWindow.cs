@@ -5,56 +5,8 @@ using UnityEngine;
 
 namespace DefineSymbolEditor
 {
-	/// <summary>
-	/// 現在の設定とプリセットを共通で扱えるようにする
-	/// </summary>
-	interface IDefineSymbolData
-	{
-		string GetCommonSymbols();
-		string GetScriptingDefineSymbolsForGroup(BuildTargetGroup targetGroup);
-	}
-
 	class DefineSymbolEditorWindow : EditorWindow
 	{
-		class PresetCreateWindow : EditorWindow
-		{
-			string m_name = "PRESET";
-			Action<string> m_callbackl;
-
-			public static PresetCreateWindow Open(Action<string> callback)
-			{
-				var win = CreateInstance<PresetCreateWindow>();
-				win.m_callbackl = callback;
-				win.ShowAuxWindow();
-				return win;
-			}
-
-			void OnEnable()
-			{
-				titleContent = new GUIContent("プリセット作成");
-				minSize =
-				maxSize = new Vector2(250, 40);
-			}
-
-			void OnGUI()
-			{
-				EditorGUIUtility.labelWidth = 70f;
-				m_name = EditorGUILayout.TextField("プリセット名", m_name);
-				using (new EditorGUILayout.HorizontalScope())
-				{
-					if (GUILayout.Button("決定", "ButtonLeft"))
-					{
-						m_callbackl(m_name);
-						Close();
-					}
-					if (GUILayout.Button("戻る", "ButtonRight"))
-					{
-						Close();
-					}
-				}
-			}
-		}
-
 		readonly BuildTargetGroup[] kTargets = 
 		{
 			BuildTargetGroup.Standalone,
@@ -76,34 +28,6 @@ namespace DefineSymbolEditor
 			BuildTargetGroup.Switch,
 		};
 
-		class PlatformData
-		{
-			public readonly BuildTargetGroup target;
-			public string name { get { return target.ToString(); } }
-			public readonly Texture icon;
-			public DefineSymbolStatus status;
-
-			public PlatformData(BuildTargetGroup target)
-			{
-				this.target = target;
-				icon = LoadIcon(target);
-			}
-
-			static Texture LoadIcon(BuildTargetGroup target)
-			{
-				var textureName = target.ToString();
-
-				// iOSは古いiPhoneの名前で存在してるらしい
-				if (target == BuildTargetGroup.iOS)
-					textureName = "iPhone";
-
-				var icon = EditorGUIUtility.Load(string.Format("BuildSettings.{0}", textureName)) as Texture;
-				if (icon == null)
-					icon = EditorGUIUtility.Load(string.Format("d_BuildSettings.{0}", textureName)) as Texture;
-				return icon;
-			}
-		}
-
 		const float kTargetItemHeight = 36f;
 		const float kTargetIconSize = 32f;
 
@@ -111,15 +35,15 @@ namespace DefineSymbolEditor
 		DefineSymbolContext m_context;
 		DefineSymbolStatus m_statusCommon;
 
-		PlatformData[] m_platforms;
-		PlatformData m_current;
+		DefineSymbolPlatformData[] m_platforms;
+		DefineSymbolPlatformData m_current;
 
 		string[] m_presetLabels;
 		string[] m_presetDeleteLabels;
+        string m_presetName;
 
 		Action m_mode;
 
-		bool m_initialized;
 		GUIStyle m_platformStyle;
 		GUIStyle m_entryBackEvenStyle;
 		GUIStyle m_entryBackOddStyle;
@@ -151,27 +75,30 @@ namespace DefineSymbolEditor
 		{
 			s_instane = this;
 
-			titleContent = new GUIContent("ScriptDefineSymbol Editor");
+			titleContent = new GUIContent("DefineSymbol Editor");
 			minSize = new Vector2(570f, 380f);
 
-			m_platforms = Array.ConvertAll(kTargets, i => new PlatformData(i));
+			m_platforms = Array.ConvertAll(kTargets, i => new DefineSymbolPlatformData(i));
 			m_current = Array.Find(m_platforms, i => i.target == EditorUserBuildSettings.selectedBuildTargetGroup) ?? m_platforms[0];
-
-			m_data = DefineSymbolData.Load();
-			UpdatePresetLabels();
-
-			m_context = new DefineSymbolContext(m_data.context);
 			
-			SetSymbolMode();
+            m_data = DefineSymbolData.Load();			
+			m_context = new DefineSymbolContext(m_data.context);
 
-			m_initialized = false;
-		}
+            InitGUI();
+            UpdatePresetLabels();
+            SetSymbolMode();
+        }
 
-		void OnGUI()
+        void OnDestroy()
+        {
+            if (s_instane == this)
+            {
+                s_instane = null;
+            }
+        }
+
+        void OnGUI()
 		{
-			if (!m_initialized && !InitGUI())
-				return;
-
 			using (new EditorGUILayout.HorizontalScope())
 			{
 				const float kPaddingSide = 12f;
@@ -211,23 +138,15 @@ namespace DefineSymbolEditor
 		// gui
 		//------------------------------------------------------
 
-		bool InitGUI()
+		void InitGUI()
 		{
-			var skin = GUI.skin;
-			m_platformStyle = GUI.skin.FindStyle("PlayerSettingsPlatform");
-			m_entryBackEvenStyle = GUI.skin.FindStyle("OL EntryBackEven");
-			m_entryBackOddStyle = GUI.skin.FindStyle("OL EntryBackOdd");
-			if (m_platformStyle == null || m_entryBackEvenStyle == null || m_entryBackOddStyle == null)
-			{
-				EditorGUILayout.HelpBox("BuiltinSkin has not style.", MessageType.Error);
-				return false;
-			}
-
-			m_initialized = true;
-			return true;
+            var skin = EditorGUIUtility.GetBuiltinSkin(EditorSkin.Scene);
+			m_platformStyle = skin.FindStyle("PlayerSettingsPlatform");
+			m_entryBackEvenStyle = skin.FindStyle("OL EntryBackEven");
+			m_entryBackOddStyle = skin.FindStyle("OL EntryBackOdd");
 		}
 
-		void DrawBuildTargetIcon(Rect itemPosition, PlatformData platform)
+		void DrawBuildTargetIcon(Rect itemPosition, DefineSymbolPlatformData platform)
 		{
 			var icon = itemPosition;
 			icon.x += 2;
@@ -238,7 +157,7 @@ namespace DefineSymbolEditor
 			itemPosition.x = icon.xMax + 4f;
 			itemPosition.y += (itemPosition.height - 16f) * 0.5f;
 			itemPosition.height = 16f;
-			GUI.Label(itemPosition, platform.ToString());
+			GUI.Label(itemPosition, platform.target.ToString());
 		}
 
 		void DrawHeader()
@@ -247,21 +166,17 @@ namespace DefineSymbolEditor
 			{
 				EditorGUILayout.LabelField(" Platform", EditorStyles.boldLabel);
 				GUILayout.FlexibleSpace();
-				using (var check = new EditorGUI.ChangeCheckScope())
+				
+                var index = EditorGUILayout.Popup(0, m_presetLabels, GUILayout.Width(90));
+                if (index > 0)
 				{
-					var index = EditorGUILayout.Popup(0, m_presetLabels, GUILayout.Width(90));
-					if (check.changed)
-					{
-						OnPresetSelected(index);
-					}
+                    OnPresetSelected(index);
 				}
-				using (var check = new EditorGUI.ChangeCheckScope())
+				
+                index = EditorGUILayout.Popup(0, m_presetDeleteLabels, GUILayout.Width(40));
+				if (index > 0)
 				{
-					var index = EditorGUILayout.Popup(0, m_presetDeleteLabels, GUILayout.Width(40));
-					if (check.changed)
-					{
-						OnDeletePresetSelected(index);
-					}
+					OnDeletePresetSelected(index);
 				}
 			}
 		}
@@ -332,23 +247,25 @@ namespace DefineSymbolEditor
 
 		void UpdatePresetLabels()
 		{
-			m_presetLabels = new string[m_data.presets.Count + 4];
-			m_presetLabels[0] = "プリセット選択";
-			m_presetLabels[1] = string.Empty;
+            m_presetLabels = new string[m_data.presets.Count + 4];
+            int indexer = 0;
+            m_presetLabels[indexer++] = "プリセット選択";
+			m_presetLabels[indexer++] = string.Empty;
 			for (int i = 0; i < m_data.presets.Count; ++i)
 			{
-				m_presetLabels[2 + i] = m_data.presets[i].name;
+				m_presetLabels[indexer++] = m_data.presets[i].name;
 			}
-			m_presetLabels[m_presetLabels.Length - 2] = string.Empty;
-			m_presetLabels[m_presetLabels.Length - 1] = "保存";
+			m_presetLabels[indexer++] = string.Empty;
+			m_presetLabels[indexer++] = "保存";
 
 
 			m_presetDeleteLabels = new string[m_data.presets.Count + 2];
-			m_presetDeleteLabels[0] = "削除";
-			m_presetDeleteLabels[1] = string.Empty;
+            indexer = 0;
+            m_presetDeleteLabels[indexer++] = "削除";
+			m_presetDeleteLabels[indexer++] = string.Empty;
 			for (int i = 0; i < m_data.presets.Count; ++i)
 			{
-				m_presetDeleteLabels[2 + i] = m_data.presets[i].name;
+				m_presetDeleteLabels[indexer++] = m_data.presets[i].name;
 			}
 		}
 
@@ -359,18 +276,27 @@ namespace DefineSymbolEditor
 
 			if (index < m_data.presets.Count)
 			{
-				UpdatePlatformStatus(m_data.presets[index]);
+                var preset = m_data.presets[index];
+                m_presetName = preset.name;
+                UpdatePlatformStatus(preset);
 				return;
 			}
 
-			PresetCreateWindow.Open(name =>
+            var win = DefineSymbolPresetCreateWindow.Open(m_presetName, name =>
 			{
 				var preset = DefineSymbolPreset.Create(name, m_statusCommon, Array.ConvertAll(m_platforms, i => i.status));
-				m_data.presets.Add(preset);
+				m_data.AddPreset(preset);
 				m_data.Save();
 				UpdatePresetLabels();
-			});
-		}
+                m_presetName = name;
+            });
+
+            var pos = win.position;
+            pos.position = new Vector2(
+                position.x + position.width - pos.width,
+                position.y);
+            win.position = pos;
+        }
 
 		void OnDeletePresetSelected(int index)
 		{
@@ -412,7 +338,7 @@ namespace DefineSymbolEditor
 			}
 		}
 
-		void PlatformField(Rect itemPosition, PlatformData platform, GUIStyle backStyle)
+		void PlatformField(Rect itemPosition, DefineSymbolPlatformData platform, GUIStyle backStyle)
 		{
 			var togglePosition = new Rect(
 				itemPosition.xMax - 32f,
@@ -520,12 +446,12 @@ namespace DefineSymbolEditor
 			status.dropdowns.ForEach(EditStatusDropdown);
 		}
 
-		void EditStatusToggle(DefineSymbolStatus.Toggle toggle)
+		void EditStatusToggle(ToggleStatus toggle)
 		{
 			toggle.enabled = EditorGUILayout.Toggle(toggle.context.content, toggle.enabled);
 		}
 
-		void EditStatusDropdown(DefineSymbolStatus.Dropdown dropdown)
+		void EditStatusDropdown(DropdownStatus dropdown)
 		{
 			dropdown.index = EditorGUILayout.Popup(dropdown.context.content, dropdown.index, dropdown.context.displayedOptions);
 		}
@@ -552,7 +478,7 @@ namespace DefineSymbolEditor
 		}
 
 		void DrawEdit<T>(string label, List<T> list, Func<T,bool> drawer, Func<T> createInstance)
-			where T : DefineSymbolContext.Symbol
+			where T : SymbolContext
 		{
 			EditorGUILayout.LabelField(label, EditorStyles.boldLabel);
 			for (int i = 0; i < list.Count; ++i)
@@ -579,7 +505,7 @@ namespace DefineSymbolEditor
 
 		const float kBtnWidth = 38f;
 
-		bool DrawEditSymbol(DefineSymbolContext.Symbol symbol)
+		bool DrawEditSymbol(SymbolContext symbol)
 		{
 			var deleteFlag = false;
 			using (new EditorGUILayout.HorizontalScope())
@@ -593,12 +519,12 @@ namespace DefineSymbolEditor
 			return deleteFlag;
 		}
 
-		bool DrawEditToggle(DefineSymbolContext.Toggle toggle)
+		bool DrawEditToggle(ToggleContext toggle)
 		{
 			return DrawEditSymbol(toggle);
 		}
 
-		bool DrawEditDropdown(DefineSymbolContext.Dropdown dropdown)
+		bool DrawEditDropdown(DropdownContext dropdown)
 		{
 			var deleteFlg = DrawEditSymbol(dropdown);
 			++EditorGUI.indentLevel;
@@ -629,17 +555,17 @@ namespace DefineSymbolEditor
 			return deleteFlg;
 		}
 
-		DefineSymbolContext.Toggle CreateToggle()
+		ToggleContext CreateToggle()
 		{
-			var toggle = new DefineSymbolContext.Toggle();
+			var toggle = new ToggleContext();
 			toggle.name = "TOGGLE" + m_context.toggles.Count;
 			toggle.description = string.Empty;
 			return toggle;
 		}
 
-		DefineSymbolContext.Dropdown CreateDropdown()
+		DropdownContext CreateDropdown()
 		{
-			var dropdown = new DefineSymbolContext.Dropdown();
+			var dropdown = new DropdownContext();
 			dropdown.name = "DROPDOWN" + m_context.dropdowns.Count;
 			dropdown.description = string.Empty;
 			dropdown.items.Add("ITEM0");
